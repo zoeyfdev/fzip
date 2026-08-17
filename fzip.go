@@ -7,7 +7,6 @@ import (
 )
 
 var data []byte
-var _out []byte
 
 func zip(granularity int) (uint32, *[]byte) {
 	var out []byte
@@ -139,12 +138,75 @@ func unzip() {
 	os.WriteFile(os.Args[3], out, 0644)
 }
 
+func nn_average() {
+	for i := 0; i < len(data); i++ {
+		var Occurrences = make(map[byte]int)
+
+		smin := i - 16
+		smax := i + 15
+
+		if smin < 0 {
+			smin = 0
+		}
+		if smax > len(data) - 1 {
+			smax = len(data) - 1
+		}
+
+		subset := data[smin:smax]
+		for _, b := range subset {
+			Occurrences[b]++
+		}
+
+		b := data[i]
+		around := []byte {}
+		ok := false
+
+		if b <= 253 {
+			around = append(around, b + 2)
+			ok = true
+		}
+		if b <= 254 {
+			around = append(around, b + 1)
+			ok = true
+		}
+		if b >= 2 {
+			around = append(around, b - 2)
+			ok = true
+		}
+		if b >= 1 {
+			around = append(around, b - 1)
+			ok = true
+		}
+		around = append(around, b)
+
+		if ok != true {
+			break
+		}
+
+		_max := 0
+		_byte := byte(0)
+
+		for _, a := range around {
+			if Occurrences[a] > _max {
+				_max = Occurrences[a]
+				_byte = a
+			}
+		}
+
+		if _max == 0 {
+			continue
+		}
+
+		data[i] = _byte
+	}
+}
+
 func main() {
-	UsageMsg := "Usage: fzip <input file> <zip/unzip> <output file>"
+	UsageMsg := "Usage: fzip <input file> <zip/unzip/noop> <output file> [-nn (enables nearest-neighbor compression, lossy)]"
 	if len(os.Args) < 4 {
 		fmt.Println(UsageMsg)
 		os.Exit(1)
-	}
+	}	
 
 	filename := os.Args[1]
 
@@ -156,8 +218,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	for i := 4; i < len(os.Args); i++ {
+		arg := os.Args[i]
+		switch arg {
+		case "-nn":
+			nn_average()
+		}
+	}
+
 	switch os.Args[2] {
-	case "zip":
+	case "zip":	
 		size, buf := zip(1)
 		size2, buf2 := zip(4)
 
@@ -176,7 +246,9 @@ func main() {
 
 		os.WriteFile(os.Args[3], *c_buf, 0644)
 	case "unzip":
-		unzip()	
+		unzip()
+	case "noop":
+		os.WriteFile(os.Args[3], data, 0644)
 	default:
 		fmt.Println(UsageMsg)
 		os.Exit(1)	
